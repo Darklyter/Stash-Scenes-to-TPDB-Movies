@@ -23,7 +23,7 @@ def main():
     scene_query = {"tags": {"value": str(no_movie_tag), "modifier": "EXCLUDES"}, "movies": {"modifier": "IS_NULL"}, "stash_id_endpoint": {"endpoint": "https://theporndb.net/graphql", "modifier": "NOT_NULL"}}
 
     # Query to do a specific site instead.  Just replace the number at the end with the correct studio id from Stash.  Only use one of these scene_queries
-    # ~ scene_query = {"tags": {"value": str(no_movie_tag), "modifier": "EXCLUDES"}, "movies": {"modifier": "IS_NULL"}, "stash_id_endpoint": {"endpoint": "https://theporndb.net/graphql", "modifier": "NOT_NULL"}, "studios": {"value": 282, "modifier": "EQUALS"}, "depth": -1}
+    # ~ scene_query = {"tags": {"value": str(no_movie_tag), "modifier": "EXCLUDES"}, "movies": {"modifier": "IS_NULL"}, "stash_id_endpoint": {"endpoint": "https://theporndb.net/graphql", "modifier": "NOT_NULL"}, "studios": {"value": 282, "modifier": "EQUALS", "depth": -1}}
 
     scenelist = stash.find_scenes(f=scene_query, filter={"per_page": -1}, fragment="id title stash_ids{endpoint stash_id} studio{name id} tags{id}")
 
