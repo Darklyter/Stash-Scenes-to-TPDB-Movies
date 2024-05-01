@@ -4,9 +4,10 @@ from stashapi.stashapp import StashInterface
 
 stash = StashInterface({"host": "192.168.1.200", "port": 9999})
 
-# Replace xxxxxxxxxxxxxxxxxx in authorization with your TPDB api key
+create_missing_studio = True
+
 headers = {
-    'Authorization': 'Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    'Authorization': 'Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxxx',
     'Accept': 'application/json',
     'Content-Type': 'application/json',
     'User-Agent': 'tpdb-scraper/1.0.0'
@@ -16,13 +17,13 @@ headers = {
 def main():
     # Identify the 'No TPDB Movie tag for marking scenes with no associated movie
     no_movie_tag = get_no_movie_tag()
-    print(f"Tag 'No TPDB Movie' Found as ID#{no_movie_tag}\n")
+    print(f"Tag 'No TPDB Movie' Found as ID#{no_movie_tag}")
 
     # Get a list of all scenes from Stash without the tag
-    scene_query = {"tags": {"value": str(no_movie_tag), "modifier": "EXCLUDES"}, "movies":{"modifier": "IS_NULL"}, "stash_id_endpoint":{"endpoint": "https://theporndb.net/graphql", "modifier": "NOT_NULL"}}
+    scene_query = {"tags": {"value": str(no_movie_tag), "modifier": "EXCLUDES"}, "movies": {"modifier": "IS_NULL"}, "stash_id_endpoint": {"endpoint": "https://theporndb.net/graphql", "modifier": "NOT_NULL"}}
 
     # Query to do a specific site instead.  Just replace the number at the end with the correct studio id from Stash.  Only use one of these scene_queries
-    # ~ scene_query = {"tags": {"value": str(no_movie_tag), "modifier": "EXCLUDES"}, "movies": {"modifier": "IS_NULL"}, "stash_id_endpoint": {"endpoint": "https://theporndb.net/graphql", "modifier": "NOT_NULL"}, "studios": {"value": 1126, "modifier": "EQUALS"}}
+    # ~ scene_query = {"tags": {"value": str(no_movie_tag), "modifier": "EXCLUDES"}, "movies": {"modifier": "IS_NULL"}, "stash_id_endpoint": {"endpoint": "https://theporndb.net/graphql", "modifier": "NOT_NULL"}, "studios": {"value": 568, "modifier": "EQUALS"}}
 
     scenelist = stash.find_scenes(f=scene_query, filter={"per_page": -1}, fragment="id title stash_ids{endpoint stash_id} studio{name id} tags{id}")
 
@@ -43,10 +44,12 @@ def main():
                 tpdb_match = get_tpdb_scene(tpdb_stashid)
                 if tpdb_match:
                     movie = check_stash_for_movie(tpdb_match['movies'][0]['id'], tpdb_match['movies'][0])
-                    if movie:
+                    if movie and movie != "Error":
                         scene_update = update_scene(int(movie), scene['id'])
                         if scene_update:
                             print(f"\tScene '{scene['title']}' ({scene['id']}) attached to movie #{movie} successfully")
+                    elif movie == "Error":
+                        print(f"\tSomething went wrong with movie tagging Scene '{scene['title']}' ({scene['id']}): {movie}")
                 else:
                     # Attach "No TPDB Movie" tag to scene
                     tag_result = stash.update_scenes({"ids": [str(scene['id'])], "tag_ids": {"mode": "ADD", "ids": [str(no_movie_tag)]}})
@@ -76,9 +79,6 @@ def check_stash_for_movie(movie_uuid, movie_def):
     if stash_movie:
         return stash_movie[0]['id']
     else:
-        # Set default "Generic Movie Studio" studio for movie in case of no match
-        movie_studio = get_generic_movie_studio()
-
         # Get the Studio/Site name for the movie
         print(f"\tChecking TPDB for site information for ID#{movie_def['site_id']}")
 
@@ -90,10 +90,25 @@ def check_stash_for_movie(movie_uuid, movie_def):
             if result['name']:
                 site_name = result['name']
                 stash_site = stash.find_studios(f={"name": {"value": site_name, "modifier": "EQUALS"}})
-                print(f"\tMatched Stash Site: {stash_site[0]['name']} with ID# {stash_site[0]['id']}")
-                movie_studio = stash_site[0]['id']
+                if stash_site and stash_site[0]['id']:
+                    print(f"\tMatched Stash Site: {stash_site[0]['name']} with ID# {stash_site[0]['id']}")
+                    movie_studio = stash_site[0]['id']
+                else:
+                    print(f"\tMatching studio not found in Stash for '{site_name}'")
+                    if create_missing_studio:
+                        print(f"\tPer `create_missing_studio` flag, creating studio for '{site_name}'")
+                        movie_studio = stash.create_studio({"name": site_name})
+                        movie_studio = movie_studio['id']
+                    else:
+                        print(f"\tPer `create_missing_studio` flag, not creating studio for '{site_name}' and using 'Movie Unknown Studio' instead")
+                        movie_studio = get_generic_movie_studio()
+
         else:
             print(f"\tCouldn't find TPDB Site Information for {movie_def['site_id']}")
+
+        if not movie_studio:
+            print("\tSomething went wrong matching or creating studio for movie.  Aborting")
+            return "Error"
 
         # Ignore the "default" image for missing images on TPDB
         if "default" in movie_def['background']['full'] and "png" in movie_def['background']['full']:
@@ -101,6 +116,12 @@ def check_stash_for_movie(movie_uuid, movie_def):
 
         if "default" in movie_def['background_back']['full'] and "png" in movie_def['background_back']['full']:
             movie_def['background_back']['full'] = None
+
+        # We need to check for an existing movie with the same title, since Stash uses the name as a unique constraint
+        movie_temp = stash.find_movies(f={"name": {"value": movie_def['title'], "modifier": "EQUALS"}})
+        if movie_temp:
+            # If we already have one, append the studio id formatted like "This Great Movie (567)"
+            movie_def['title'] = f"{movie_def['title']} ({movie_studio})"
 
         # And then create a new movie instance from TPDB data
         print(f"\tCreating new movie entry for '{movie_def['title']}' with studio '{movie_studio}'")
