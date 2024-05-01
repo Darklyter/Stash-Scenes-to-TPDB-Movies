@@ -90,8 +90,12 @@ def check_stash_for_movie(movie_uuid, movie_def):
             if result['name']:
                 site_name = result['name']
                 stash_site = stash.find_studios(f={"name": {"value": site_name, "modifier": "EQUALS"}})
+                disp_text = "by name"
+                if not stash_site:
+                    stash_site = stash.find_studios(f={"aliases": {"value": site_name, "modifier": "EQUALS"}})
+                    disp_text = "by alias"
                 if stash_site and stash_site[0]['id']:
-                    print(f"\tMatched Stash Site: {stash_site[0]['name']} with ID# {stash_site[0]['id']}")
+                    print(f"\tMatched Stash Site {disp_text}: {stash_site[0]['name']} with ID# {stash_site[0]['id']}")
                     movie_studio = stash_site[0]['id']
                 else:
                     print(f"\tMatching studio not found in Stash for '{site_name}'")
