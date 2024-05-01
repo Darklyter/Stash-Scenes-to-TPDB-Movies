@@ -13,3 +13,5 @@ It will also create a "No TPDB Movie" tag, which will be assigned to any scene t
 Stashtools is required, which you can install with "pip install stashapp-tools"
 
 By default it will run through your entire collection, but if you'd like to do a studio at a time you can comment line 22, uncomment line 25 and change the studio id to whatever you would like.  The one currently in there (1126) is HotWifeXXX in my Stash, for example.
+
+Also as a side note, if something goes screwy you can always just delete the created movie.  That will remove them from the attached scenes, but won't mess with the scenes apart from that.  But I would back up your database before you run this thing, just in case.  For all I know this thing will set your house on fire and get your dog pregnant.  /shrug
